@@ -2,6 +2,9 @@
 #include <string>
 #include <cstring>
 #include <cassert>
+#include <cctype>
+#include <cerrno>
+#include <cmath>
 #include "leptjson/leptjson.h"
 
 #define EXPECT(c, ch) do { assert(*c.json == (ch)); c.json++; } while(0)
@@ -20,13 +23,49 @@ static void lept_parse_whitespace(lept_context& c) {
 }
 
 static int lept_parse_number(lept_context& c, lept_value& v) {
-    char *end = nullptr;
-    v.n = std::strtod(c.json, &end);
-    if(c.json == end) {
-        return LEPT_PARSE_INVALID_VALUE;
+    const char * p = c.json;
+    if(*p == '-') {
+        p++;
     }
-    c.json = end;
+    if(*p == '0') {
+        p++;
+    } else {
+        if(!std::isdigit(*p)) {
+            return LEPT_PARSE_INVALID_VALUE;
+        }
+        while(std::isdigit(*p)) {
+            p++;
+        }
+    }
+    if(*p == '.') {
+        p++;
+        if(!std::isdigit(*p)) {
+            return LEPT_PARSE_INVALID_VALUE;
+        }
+        while(std::isdigit(*p)) {
+            p++;
+        }
+    }
+    if(*p == 'e' || *p == 'E') {
+        p++;
+        if(*p == '+' || *p == '-') {
+            p++;
+        }
+        if(!std::isdigit(*p)) {
+            return LEPT_PARSE_INVALID_VALUE;
+        }
+        while(std::isdigit(*p)) {
+            p++;
+        }
+    }
+
+    errno = 0;
+    v.n = strtod(c.json, nullptr);
+    if (errno == ERANGE && (v.n == HUGE_VAL || v.n == -HUGE_VAL)) {
+        return LEPT_PARSE_NUMBER_TOO_BIG;
+    }
     v.type = lept_type::LEPT_NUMBER;
+    c.json = p;
     return LEPT_PARSE_OK;
 }
 

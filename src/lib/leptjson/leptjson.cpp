@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <cstring>
 #include <cassert>
 #include "leptjson/leptjson.h"
 
@@ -18,40 +19,35 @@ static void lept_parse_whitespace(lept_context& c) {
     c.json = p;
 }
 
-static int lept_parse_null(lept_context& c, lept_value& v) {
-    EXPECT(c, 'n');
-    if (c.json[0] != 'u' || c.json[1] != 'l' || c.json[2] != 'l')
+static int lept_parse_number(lept_context& c, lept_value& v) {
+    char *end = nullptr;
+    v.n = std::strtod(c.json, &end);
+    if(c.json == end) {
         return LEPT_PARSE_INVALID_VALUE;
-    c.json += 3;
-    v.type = lept_type::LEPT_NULL;
+    }
+    c.json = end;
+    v.type = lept_type::LEPT_NUMBER;
     return LEPT_PARSE_OK;
 }
 
-static int lept_parse_true(lept_context& c, lept_value& v) {
-    EXPECT(c, 't');
-    if (c.json[0] != 'r' || c.json[1] != 'u' || c.json[2] != 'e')
+int lept_parse_literal(lept_context& c, lept_value& v, const std::string& l, lept_type t)
+{
+    if(strncmp(c.json, l.c_str(), l.length())) {
         return LEPT_PARSE_INVALID_VALUE;
-    c.json += 3;
-    v.type = lept_type::LEPT_TRUE;
-    return LEPT_PARSE_OK;
-}
+    }
 
-static int lept_parse_false(lept_context& c, lept_value& v) {
-    EXPECT(c, 'f');
-    if (c.json[0] != 'a' || c.json[1] != 'l' || c.json[2] != 's' || c.json[3] != 'e')
-        return LEPT_PARSE_INVALID_VALUE;
-    c.json += 4;
-    v.type = lept_type::LEPT_FALSE;
+    v.type = t;
+    c.json += l.length();
     return LEPT_PARSE_OK;
 }
 
 static int lept_parse_value(lept_context& c, lept_value& v) {
     switch (*c.json) {
-        case 'n':  return lept_parse_null(c, v);
-        case 't':  return lept_parse_true(c, v);
-        case 'f':  return lept_parse_false(c, v);
+        case 'n':  return lept_parse_literal(c, v, "null", lept_type::LEPT_NULL);
+        case 't':  return lept_parse_literal(c, v, "true", lept_type::LEPT_TRUE);
+        case 'f':  return lept_parse_literal(c, v, "false", lept_type::LEPT_FALSE);
         case '\0': return LEPT_PARSE_EXPECT_VALUE;
-        default:   return LEPT_PARSE_INVALID_VALUE;
+        default:   return lept_parse_number(c, v);
     }
 }
 
@@ -73,6 +69,11 @@ int lept_parse(lept_value& v, const std::string& json)
 
 lept_type lept_get_type(const lept_value& v) {
     return v.type;
+}
+
+double lept_get_number(const lept_value& v) {
+    assert(v.type == lept_type::LEPT_NUMBER);
+    return v.n;
 }
 
 }

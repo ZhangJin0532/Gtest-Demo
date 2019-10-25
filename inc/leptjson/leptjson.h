@@ -21,6 +21,7 @@ namespace leptjson {
     };
 
     struct lept_value {
+        double n;
         lept_type type;
     };
 

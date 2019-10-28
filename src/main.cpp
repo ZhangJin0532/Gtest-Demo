@@ -2,10 +2,12 @@
 #include <gtest/gtest.h>
 #include <utility>
 #include <string>
-
+#include <cstring>
 #include "leptjson/leptjson.h"
 
 using namespace leptjson;
+
+lept_value v;
 
 void CheckParseResultAndType(lept_value& v, const std::string& data, const int parse_result, const lept_type t)
 {
@@ -20,31 +22,30 @@ void CheckParseResult(lept_value& v, const std::string& data, const int parse_re
 
 TEST(Test_Parse, Parse_Null)
 {
-    lept_value v;
+    lept_init(v);
     v.type = lept_type::LEPT_FALSE;
     CheckParseResultAndType(v, "null", LEPT_PARSE_OK, lept_type::LEPT_NULL);
 }
 
 TEST(Test_Parse, Parse_True)
 {
-    lept_value v;
-    v.type = lept_type::LEPT_NULL;
+    lept_init(v);
     CheckParseResultAndType(v, "true", LEPT_PARSE_OK, lept_type::LEPT_TRUE);
 }
 
 TEST(Test_Parse, Parse_False)
 {
-    lept_value v;
-    v.type = lept_type::LEPT_NULL;
+    lept_init(v);
     CheckParseResultAndType(v, "false", LEPT_PARSE_OK, lept_type::LEPT_FALSE);
 }
 
 TEST(Test_Parse, Parse_Expect_Value)
 {
-    lept_value v;
+    lept_init(v);
     v.type = lept_type::LEPT_FALSE;
     CheckParseResultAndType(v, "", LEPT_PARSE_EXPECT_VALUE, lept_type::LEPT_NULL);
 
+    lept_init(v);
     v.type = lept_type::LEPT_FALSE;
     CheckParseResultAndType(v, " ", LEPT_PARSE_EXPECT_VALUE, lept_type::LEPT_NULL);
 }
@@ -58,8 +59,8 @@ TEST(Test_Parse, Parse_Root_Not_Singular)
         { LEPT_PARSE_ROOT_NOT_SINGULAR, "null x"}
     };
 
-    lept_value v;
     for(auto p : TestCase) {
+        lept_init(v);
         CheckParseResult(v, p.second, p.first);
     }
 }
@@ -97,12 +98,30 @@ TEST(Test_Parse, Parse_Number)
         {-1.7976931348623157e+308, "-1.7976931348623157e+308"},
     };
 
-    lept_value v;
-    v.type = lept_type::LEPT_NULL;
     for(auto& p : TestCase) {
-        CheckParseResultAndType(v, p.second, LEPT_PARSE_OK, lept_type::LEPT_NUMBER);        
-        EXPECT_EQ(p.first, v.n);
+        lept_init(v);
+        CheckParseResultAndType(v, p.second, LEPT_PARSE_OK, lept_type::LEPT_NUMBER);
+        EXPECT_DOUBLE_EQ(p.first, lept_get_number(v));
     }
+}
+
+TEST(Test_Parse, Parse_String)
+{
+    std::pair<const std::string, const std::string> TestCase[] = {
+        {"", R"("")"},
+        {"hello", R"("hello")"}
+    };
+    
+    for(auto& p : TestCase) {
+        lept_init(v);
+        CheckParseResultAndType(v, p.second, LEPT_PARSE_OK, lept_type::LEPT_STRING);
+        EXPECT_EQ(p.first, lept_get_string(v));
+    }
+
+#if 0
+    TEST_STRING("Hello\nWorld", "\"Hello\\nWorld\"");
+    TEST_STRING("\" \\ / \b \f \n \r \t", "\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\"");
+#endif
 }
 
 TEST(Test_Parse, Parse_Too_Big_Value)
@@ -112,8 +131,8 @@ TEST(Test_Parse, Parse_Too_Big_Value)
         {LEPT_PARSE_NUMBER_TOO_BIG, "-1e309"}
     };
 
-    lept_value v;
     for(auto p : TestCase) {
+        lept_init(v);
         CheckParseResult(v, p.second, p.first); 
     }
 }
@@ -133,10 +152,80 @@ TEST(Test_Parse, Parse_Invalid_Value)
         {LEPT_PARSE_INVALID_VALUE, "nan"}
     };
 
-    lept_value v;
     for(auto& p : TestCase) {
+        lept_init(v);
         CheckParseResult(v, p.second, p.first); 
     }
+}
+
+TEST(Test_Parse, Parse_Missing_Quotation_Mark)
+{
+    std::pair<int, std::string> TestCase[] = {
+        {LEPT_PARSE_MISS_QUOTATION_MARK, "\""},
+        {LEPT_PARSE_MISS_QUOTATION_MARK, "\"abc"}
+    };
+
+    for(auto& p : TestCase) {
+        lept_init(v);
+        CheckParseResult(v, p.second, p.first); 
+    }
+
+}
+
+TEST(Test_Parse, Parse_Invalid_String_Escape)
+{
+#if 0
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\v\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\'\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\0\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE, "\"\\x12\"");
+#endif
+}
+
+TEST(Test_Parse, Parse_Invalid_String_Char)
+{
+#if 0
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x01\"");
+    TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
+#endif
+}
+
+TEST(Test_Access, Access_Null)
+{
+    lept_init(v);
+    lept_set_string(v, "a");
+    lept_set_null(v);
+    EXPECT_EQ(lept_type::LEPT_NULL, lept_get_type(v));
+}
+
+TEST(Test_Access, Access_Boolean)
+{
+    lept_init(v);
+    lept_set_string(v, "a");
+    lept_set_boolean(v, true);
+    EXPECT_EQ(lept_type::LEPT_TRUE, lept_get_type(v));
+    EXPECT_TRUE(lept_get_boolean(v));
+    lept_set_boolean(v, false);
+    EXPECT_EQ(lept_type::LEPT_FALSE, lept_get_type(v));
+    EXPECT_FALSE(lept_get_boolean(v));
+}
+
+TEST(Test_Access, Access_Number)
+{
+    lept_init(v);
+    lept_set_string(v, "a");
+    lept_set_number(v, 123.456);
+    EXPECT_EQ(lept_type::LEPT_NUMBER, lept_get_type(v));
+    EXPECT_DOUBLE_EQ(123.456, lept_get_number(v));
+}
+
+TEST(Test_Access, Access_String)
+{
+    lept_init(v);
+    lept_set_string(v, "");
+    EXPECT_EQ("", lept_get_string(v));
+    lept_set_string(v, "Hello");
+    EXPECT_EQ("Hello", lept_get_string(v));
 }
 
 int main(int argc, char** argv)
